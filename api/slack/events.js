@@ -30,10 +30,10 @@ function parseSlackBody(rawBody) {
 }
 
 function parseShortcutPayload(payload) {
-  if (!payload || payload.type !== 'shortcut') return null;
+  if (!payload || !['shortcut', 'message_action'].includes(payload.type)) return null;
 
   return {
-    sourceType: 'shortcut',
+    sourceType: payload.type === 'message_action' ? 'message_action' : 'shortcut',
     userId: payload.user && payload.user.id,
     channelId: payload.channel && payload.channel.id,
     messageTs: payload.message && payload.message.ts,
@@ -326,20 +326,23 @@ async function handler(req, res) {
     );
   }
 
-  if (body.type === 'shortcut') {
+  if (body.type === 'shortcut' || body.type === 'message_action') {
     const shortcutPayload = parseShortcutPayload(body);
     const triggerEmoji = process.env.TRIGGER_EMOJI || 'thermometer';
 
-    waitUntil(
-      handleMessageReview({
-        ...shortcutPayload,
-        triggerEmoji,
-      }).catch((err) => {
-        console.error('Failed to handle shortcut payload', err);
-      })
-    );
+    if (shortcutPayload) {
+      waitUntil(
+        handleMessageReview({
+          ...shortcutPayload,
+          triggerEmoji,
+        }).catch((err) => {
+          console.error('Failed to handle shortcut payload', err);
+        })
+      );
+    }
   }
 }
 
 handler.parseSlackBody = parseSlackBody;
+handler.parseShortcutPayload = parseShortcutPayload;
 module.exports = handler;
