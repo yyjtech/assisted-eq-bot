@@ -16,7 +16,7 @@ function blockquote(text) {
 }
 
 async function handleReactionAdded(event) {
-  const triggerEmoji = process.env.TRIGGER_EMOJI || 'skunk';
+  const triggerEmoji = process.env.TRIGGER_EMOJI || 'thermometer';
 
   if (event.reaction !== triggerEmoji) return;
   if (!event.item || event.item.type !== 'message') return;
