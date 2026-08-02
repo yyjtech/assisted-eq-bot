@@ -1,6 +1,6 @@
 display_information:
   name: Assisted EQ Bot
-  description: Forwards messages reacted with :thermometer: into a thread in a triage channel
+  description: 'Forwards messages reacted with :thermometer: into a thread in a triage channel'
   background_color: "#4a4a4a"
 features:
   bot_user:
