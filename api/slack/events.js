@@ -15,6 +15,17 @@ function blockquote(text) {
     .join('\n');
 }
 
+function buildFeedbackText({ messageText, aiReview, messagePermalink }) {
+  return [
+    'Message was reviewed by Assisted EQ Bot.',
+    `> ${messageText}`,
+    '',
+    aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
+    '',
+    `Original message: ${messagePermalink}`,
+  ].join('\n');
+}
+
 function decodeFormBody(bodyText) {
   const params = new URLSearchParams(bodyText);
   const payloadValue = params.get('payload');
@@ -91,14 +102,11 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
       return null;
     });
 
-    const feedbackText = [
-      'Your message was reviewed by Assisted EQ Bot.',
-      `> ${messageText}`,
-      '',
-      aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
-      '',
-      `Original message: ${messagePermalink}`,
-    ].join('\n');
+    const feedbackText = buildFeedbackText({
+      messageText,
+      aiReview,
+      messagePermalink,
+    });
 
     console.log('Sending feedback DM to self-flagging user', { user: userId });
     await sendDirectMessage(userId, feedbackText);
@@ -126,6 +134,12 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
     return null;
   });
 
+  const feedbackText = buildFeedbackText({
+    messageText,
+    aiReview,
+    messagePermalink,
+  });
+
   const textParts = [];
   if (aiReview && aiReview.needsEscalation) {
     textParts.push('@channel');
@@ -133,14 +147,11 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
 
   textParts.push(
     `:${triggerEmoji}: Flagged message from ${author} in <#${channelId}>`,
+    feedbackText,
+    '',
     messagePermalink,
     blockquote(messageText)
   );
-
-  if (aiReview && aiReview.reviewText) {
-    textParts.push('\n*OpenAI review:*');
-    textParts.push(aiReview.reviewText);
-  }
 
   console.log('Posting triage message', { channel: channelId, ts: messageTs, escalation: Boolean(aiReview && aiReview.needsEscalation) });
   const posted = await postToTriage({
@@ -366,4 +377,5 @@ async function handler(req, res) {
 
 handler.parseSlackBody = parseSlackBody;
 handler.parseShortcutPayload = parseShortcutPayload;
+handler.buildFeedbackText = buildFeedbackText;
 module.exports = handler;

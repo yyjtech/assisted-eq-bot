@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseSlackBody, parseShortcutPayload } = require('../api/slack/events');
+const { parseSlackBody, parseShortcutPayload, buildFeedbackText } = require('../api/slack/events');
 const { buildForwardedMessagePayload } = require('../lib/slack');
 const { getExistingThreadTs, rememberThreadTs } = require('../lib/store');
 
@@ -47,6 +47,18 @@ test('parses Slack message_action payloads for message review', () => {
   assert.equal(parsedShortcut.channelId, 'C456');
   assert.equal(parsedShortcut.messageTs, '1700000000.0002');
   assert.equal(parsedShortcut.message.text, 'hello');
+});
+
+test('builds shared feedback text with the AI review and permalink', () => {
+  const feedbackText = buildFeedbackText({
+    messageText: 'hello world',
+    aiReview: { reviewText: 'This is a review' },
+    messagePermalink: 'https://slack.example.com/message',
+  });
+
+  assert.match(feedbackText, /Message was reviewed by Assisted EQ Bot\./);
+  assert.match(feedbackText, /This is a review/);
+  assert.match(feedbackText, /https:\/\/slack\.example\.com\/message/);
 });
 
 test('builds a forwarded message payload that preserves body and attachments', () => {
