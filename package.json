@@ -2,10 +2,11 @@
   "name": "assisted-eq-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "Slack Events API app: forwards messages reacted with :skunk: into a thread in #coc-reports for Assisted EQ Bot",
+  "description": "Slack Events API app: forwards messages reacted with :thermometer: into a thread in a triage channel for Assisted EQ Bot",
   "main": "index.js",
   "scripts": {
-    "dev": "vercel dev"
+    "dev": "vercel dev",
+    "start": "node index.js"
   },
   "dependencies": {
     "@slack/web-api": "^7.7.0",
