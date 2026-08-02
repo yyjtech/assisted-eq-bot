@@ -67,6 +67,7 @@ async function handleReactionAdded(event) {
 
     const feedbackText = [
       'Your message was reviewed by Assisted EQ Bot.',
+      `> ${messageText}`,
       '',
       aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
       '',
