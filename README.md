@@ -67,4 +67,5 @@ SLACK_BOT_TOKEN=xoxb-... node scripts/join-all-public-channels.js
 
 - Slack only delivers `reaction_added` events for channels the bot is a member of.
 - If `TRIAGE_CHANNEL_NAME` is used, the bot must already be invited to that channel.
+- The user who adds the trigger emoji will receive a direct message confirming the message was forwarded to the Channel Stewards.
 - The function acknowledges Slack quickly and does the Slack API work asynchronously for reliability.

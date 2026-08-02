@@ -1,6 +1,6 @@
 const { waitUntil } = require('@vercel/functions');
 const { readRawBody, isValidSlackSignature } = require('../../lib/verify');
-const { fetchMessage, getPermalink, postToTriage } = require('../../lib/slack');
+const { fetchMessage, getPermalink, postToTriage, sendDirectMessage } = require('../../lib/slack');
 const { getExistingThreadTs, rememberThreadTs } = require('../../lib/store');
 const { reviewMessage } = require('../../lib/openai');
 
@@ -63,6 +63,17 @@ async function handleReactionAdded(event) {
 
   const posted = await postToTriage({ text: textParts.join('\n') });
   await rememberThreadTs(channel, ts, posted.ts);
+
+  if (event.user) {
+    try {
+      await sendDirectMessage(
+        event.user,
+        `Your reaction has forwarded the message to the Channel Stewards in <#${process.env.TRIAGE_CHANNEL_NAME || 'the target channel'}>.`
+      );
+    } catch (err) {
+      console.error('Failed to send DM to user', err);
+    }
+  }
 }
 
 module.exports = async (req, res) => {
