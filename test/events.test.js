@@ -96,6 +96,23 @@ test('builds both history and replies fetches for a message lookup', () => {
   });
 });
 
+test('uses an explicit template text instead of rebuilding it from the message body', () => {
+  const payload = buildForwardedMessagePayload({
+    message: {
+      text: 'Hello world',
+      attachments: [{ text: 'Attachment body' }],
+      blocks: [{ type: 'section', text: { type: 'mrkdwn', text: 'Block body' } }],
+    },
+    permalink: 'https://slack.example.com/message',
+    introText: 'Forwarded message',
+    text: 'Template body from the handler',
+  });
+
+  assert.equal(payload.text, 'Template body from the handler');
+  assert.deepStrictEqual(payload.attachments, [{ text: 'Attachment body' }]);
+  assert.deepStrictEqual(payload.blocks, [{ type: 'section', text: { type: 'mrkdwn', text: 'Block body' } }]);
+});
+
 test('builds a forwarded message payload that preserves body and attachments', () => {
   const payload = buildForwardedMessagePayload({
     message: {
