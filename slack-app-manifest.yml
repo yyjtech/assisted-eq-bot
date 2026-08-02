@@ -1,0 +1,24 @@
+display_information:
+  name: Skunk Forwarder
+  description: Forwards messages reacted with :skunk: into a thread in #coc-reports
+  background_color: "#4a4a4a"
+oauth_config:
+  scopes:
+    bot:
+      - reactions:read
+      - channels:history
+      - groups:history
+      - chat:write
+      - channels:read
+      - groups:read
+      - channels:join
+settings:
+  event_subscriptions:
+    # Replace with your deployed Vercel URL once you have it, e.g.
+    # https://slack-emoji-forwarder.vercel.app/api/slack/events
+    request_url: https://REPLACE_ME.vercel.app/api/slack/events
+    bot_events:
+      - reaction_added
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
