@@ -35,7 +35,7 @@ test('parses URL-encoded Slack interaction payloads', () => {
 });
 
 test('parses Slack message_action payloads for message review', () => {
-  const rawBody = Buffer.from('payload=%7B%22type%22%3A%22message_action%22%2C%22callback_id%22%3A%22review_message%22%2C%22user%22%3A%7B%22id%22%3A%22U456%22%7D%2C%22channel%22%3A%7B%22id%22%3A%22C456%22%7D%2C%22message%22%3A%7B%22ts%22%3A%221700000000.0002%22%7D%7D');
+  const rawBody = Buffer.from('payload=%7B%22type%22%3A%22message_action%22%2C%22callback_id%22%3A%22review_message%22%2C%22user%22%3A%7B%22id%22%3A%22U456%22%7D%2C%22channel%22%3A%7B%22id%22%3A%22C456%22%7D%2C%22message%22%3A%7B%22ts%22%3A%221700000000.0002%22%2C%22text%22%3A%22hello%22%7D%7D');
 
   const parsed = parseSlackBody(rawBody);
   const parsedShortcut = parseShortcutPayload(parsed);
@@ -46,6 +46,7 @@ test('parses Slack message_action payloads for message review', () => {
   assert.equal(parsedShortcut.userId, 'U456');
   assert.equal(parsedShortcut.channelId, 'C456');
   assert.equal(parsedShortcut.messageTs, '1700000000.0002');
+  assert.equal(parsedShortcut.message.text, 'hello');
 });
 
 test('builds a forwarded message payload that preserves body and attachments', () => {

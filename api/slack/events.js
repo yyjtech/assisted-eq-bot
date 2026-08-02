@@ -37,20 +37,34 @@ function parseShortcutPayload(payload) {
     userId: payload.user && payload.user.id,
     channelId: payload.channel && payload.channel.id,
     messageTs: payload.message && payload.message.ts,
+    message: payload.message || null,
   };
 }
 
-async function handleMessageReview({ sourceType, userId, channelId, messageTs, triggerEmoji }) {
+async function handleMessageReview({ sourceType, userId, channelId, messageTs, triggerEmoji, message: payloadMessage }) {
   if (!channelId || !messageTs) {
     console.log('Shortcut payload missing channel or message timestamp', { channelId, messageTs });
     return;
   }
 
-  console.log('Fetching message and permalink', { channel: channelId, ts: messageTs });
-  const [message, messagePermalink] = await Promise.all([
-    fetchMessage(channelId, messageTs),
-    getPermalink(channelId, messageTs),
-  ]);
+  let message = payloadMessage || null;
+  let messagePermalink = null;
+
+  if (message) {
+    console.log('Using message from interaction payload', { channel: channelId, ts: messageTs, messageUser: message.user });
+    if (messageTs) {
+      messagePermalink = await getPermalink(channelId, messageTs).catch((err) => {
+        console.error('Failed to resolve permalink from payload message', err);
+        return null;
+      });
+    }
+  } else {
+    console.log('Fetching message and permalink', { channel: channelId, ts: messageTs });
+    [message, messagePermalink] = await Promise.all([
+      fetchMessage(channelId, messageTs),
+      getPermalink(channelId, messageTs),
+    ]);
+  }
 
   if (!message) {
     console.log('No message found for review target; likely deleted or inaccessible', { channel: channelId, ts: messageTs });
