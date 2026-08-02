@@ -7,7 +7,7 @@ This app is built as a Vercel serverless function and uses Slack Events API `rea
 ## What it does
 
 - listens for `reaction_added` events across channels the bot is in
-- checks for a configured trigger emoji (defaults to `skunk`)
+- checks for a configured trigger emoji (defaults to `thermometer`)
 - fetches the reacted-to message
 - posts a notification into a target channel, threading follow-up reactions onto the same thread
 
@@ -31,7 +31,7 @@ Create a `.env` file or configure these in Vercel:
 Optional:
 
 - `TRIAGE_CHANNEL_ID` - direct channel ID to post notifications (if set, this takes precedence over `TRIAGE_CHANNEL_NAME`)
-- `TRIGGER_EMOJI` - emoji name to watch for (default: `skunk`)
+- `TRIGGER_EMOJI` - emoji name to watch for (default: `thermometer`)
 - `OPENAI_API_KEY` - API key for OpenAI to review flagged messages
 - `ESCALATION_THRESHOLD` - minimum score threshold for escalation (default: `6.5`)
 
