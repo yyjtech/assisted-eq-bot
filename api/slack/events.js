@@ -18,27 +18,52 @@ function blockquote(text) {
 async function handleReactionAdded(event) {
   const triggerEmoji = process.env.TRIGGER_EMOJI || 'thermometer';
 
-  if (event.reaction !== triggerEmoji) return;
-  if (!event.item || event.item.type !== 'message') return;
+  console.log('Received reaction event', {
+    reaction: event.reaction,
+    triggerEmoji,
+    user: event.user,
+    itemType: event.item && event.item.type,
+    channel: event.item && event.item.channel,
+    ts: event.item && event.item.ts,
+  });
+
+  if (event.reaction !== triggerEmoji) {
+    console.log('Reaction did not match trigger emoji');
+    return;
+  }
+
+  if (!event.item || event.item.type !== 'message') {
+    console.log('Reaction item was not a message');
+    return;
+  }
 
   const { channel, ts } = event.item;
 
+  console.log('Fetching message and permalink', { channel, ts });
   const [message, messagePermalink] = await Promise.all([
     fetchMessage(channel, ts),
     getPermalink(channel, ts),
   ]);
 
-  if (!message) return; // message was deleted, or bot can't see the channel
+  if (!message) {
+    console.log('No message found for reaction; likely deleted or inaccessible', { channel, ts });
+    return;
+  }
+
+  console.log('Fetched message', { channel, ts, messageUser: message.user, messageText: message.text });
 
   const author = message.user ? `<@${message.user}>` : 'someone';
   const messageText = message.text || '';
   const isSelfFlag = Boolean(message.user && event.user === message.user);
 
   if (isSelfFlag) {
+    console.log('Self-flagging path selected', { user: event.user, author: message.user });
     const aiReview = await reviewMessage(messageText).catch((err) => {
       console.error('Review failed', err);
       return null;
     });
+
+    console.log('AI review generated for self-flag', { reviewPresent: Boolean(aiReview && aiReview.reviewText) });
 
     const feedbackText = [
       'Your message was reviewed by Assisted EQ Bot.',
@@ -48,19 +73,24 @@ async function handleReactionAdded(event) {
       `Original message: ${messagePermalink}`,
     ].join('\n');
 
+    console.log('Sending feedback DM to self-flagging user', { user: event.user });
     await sendDirectMessage(event.user, feedbackText);
+    console.log('Feedback DM sent');
     return;
   }
 
   const existingThreadTs = await getExistingThreadTs(channel, ts);
   if (existingThreadTs) {
+    console.log('Found existing thread for message; posting follow-up reply', { channel, ts, existingThreadTs });
     await postToTriage({
       text: `:${triggerEmoji}: Also flagged by <@${event.user}>`,
       threadTs: existingThreadTs,
     });
+    console.log('Follow-up reply posted');
     return;
   }
 
+  console.log('No existing thread found; generating new triage post');
   const aiReview = await reviewMessage(messageText).catch((err) => {
     console.error('OpenAI review failed', err);
     return null;
@@ -82,15 +112,20 @@ async function handleReactionAdded(event) {
     textParts.push(aiReview.reviewText);
   }
 
+  console.log('Posting triage message', { channel, ts, escalation: Boolean(aiReview && aiReview.needsEscalation) });
   const posted = await postToTriage({ text: textParts.join('\n') });
+  console.log('Triage message posted', { postedTs: posted && posted.ts });
   await rememberThreadTs(channel, ts, posted.ts);
+  console.log('Thread mapping stored', { channel, ts, postedTs: posted && posted.ts });
 
   if (event.user) {
     try {
+      console.log('Sending acknowledgement DM to reacting user', { user: event.user });
       await sendDirectMessage(
         event.user,
         `Your reaction has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.`
       );
+      console.log('Acknowledgement DM sent');
     } catch (err) {
       console.error('Failed to send DM to user', err);
     }
