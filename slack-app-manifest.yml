@@ -16,6 +16,10 @@ oauth_config:
       - channels:read
       - groups:read
       - channels:join
+      - im:write
+      - mpim:write
+      - groups:write
+      - channels:write
 settings:
   event_subscriptions:
     # Replace with your deployed Vercel URL once you have it, e.g.
