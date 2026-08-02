@@ -15,6 +15,124 @@ function blockquote(text) {
     .join('\n');
 }
 
+function parseShortcutPayload(payload) {
+  if (!payload || payload.type !== 'shortcut') return null;
+
+  return {
+    sourceType: 'shortcut',
+    userId: payload.user && payload.user.id,
+    channelId: payload.channel && payload.channel.id,
+    messageTs: payload.message && payload.message.ts,
+  };
+}
+
+async function handleMessageReview({ sourceType, userId, channelId, messageTs, triggerEmoji }) {
+  if (!channelId || !messageTs) {
+    console.log('Shortcut payload missing channel or message timestamp', { channelId, messageTs });
+    return;
+  }
+
+  console.log('Fetching message and permalink', { channel: channelId, ts: messageTs });
+  const [message, messagePermalink] = await Promise.all([
+    fetchMessage(channelId, messageTs),
+    getPermalink(channelId, messageTs),
+  ]);
+
+  if (!message) {
+    console.log('No message found for review target; likely deleted or inaccessible', { channel: channelId, ts: messageTs });
+    return;
+  }
+
+  console.log('Fetched message', { channel: channelId, ts: messageTs, messageUser: message.user, messageText: message.text });
+
+  const author = message.user ? `<@${message.user}>` : 'someone';
+  const messageText = message.text || '';
+  const isSelfFlag = Boolean(message.user && userId === message.user);
+
+  if (isSelfFlag) {
+    console.log('Self-flagging path selected', { user: userId, author: message.user });
+    const aiReview = await reviewMessage(messageText).catch((err) => {
+      console.error('Review failed', err);
+      return null;
+    });
+
+    const feedbackText = [
+      'Your message was reviewed by Assisted EQ Bot.',
+      `> ${messageText}`,
+      '',
+      aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
+      '',
+      `Original message: ${messagePermalink}`,
+    ].join('\n');
+
+    console.log('Sending feedback DM to self-flagging user', { user: userId });
+    await sendDirectMessage(userId, feedbackText);
+    console.log('Feedback DM sent');
+    return;
+  }
+
+  const existingThreadTs = await getExistingThreadTs(channelId, messageTs);
+  if (existingThreadTs) {
+    console.log('Found existing thread for message; posting follow-up reply', { channel: channelId, ts: messageTs, existingThreadTs });
+    await postToTriage({
+      text: `:${triggerEmoji}: Also flagged by <@${userId}>`,
+      threadTs: existingThreadTs,
+      message,
+      permalink: messagePermalink,
+      introText: `:${triggerEmoji}: Also flagged by <@${userId}>`,
+    });
+    console.log('Follow-up reply posted');
+    return;
+  }
+
+  console.log('No existing thread found; generating new triage post');
+  const aiReview = await reviewMessage(messageText).catch((err) => {
+    console.error('OpenAI review failed', err);
+    return null;
+  });
+
+  const textParts = [];
+  if (aiReview && aiReview.needsEscalation) {
+    textParts.push('@channel');
+  }
+
+  textParts.push(
+    `:${triggerEmoji}: Flagged message from ${author} in <#${channelId}>`,
+    messagePermalink,
+    blockquote(messageText)
+  );
+
+  if (aiReview && aiReview.reviewText) {
+    textParts.push('\n*OpenAI review:*');
+    textParts.push(aiReview.reviewText);
+  }
+
+  console.log('Posting triage message', { channel: channelId, ts: messageTs, escalation: Boolean(aiReview && aiReview.needsEscalation) });
+  const posted = await postToTriage({
+    text: textParts.join('\n'),
+    message,
+    permalink: messagePermalink,
+    introText: textParts.join('\n'),
+  });
+  console.log('Triage message posted', { postedTs: posted && posted.ts });
+  await rememberThreadTs(channelId, messageTs, posted.ts);
+  console.log('Thread mapping stored', { channel: channelId, ts: messageTs, postedTs: posted && posted.ts });
+
+  if (userId) {
+    try {
+      const acknowledgementText = sourceType === 'shortcut'
+        ? 'Your shortcut request has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.'
+        : 'Your reaction has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.';
+
+      console.log('Sending acknowledgement DM to user', { user: userId, sourceType });
+      await sendDirectMessage(userId, acknowledgementText);
+      console.log('Acknowledgement DM sent');
+    } catch (err) {
+      console.error('Failed to send DM to user', err);
+    }
+  }
+}
+
 async function handleReactionAdded(event) {
   const triggerEmoji = process.env.TRIGGER_EMOJI || 'thermometer';
 
@@ -161,7 +279,8 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const body = JSON.parse(rawBody.toString('utf8'));
+  const payload = JSON.parse(rawBody.toString('utf8'));
+  const body = payload.payload ? JSON.parse(payload.payload) : payload;
   console.log('Parsed request body', {
     type: body.type,
     eventType: body.event && body.event.type,
@@ -190,6 +309,20 @@ module.exports = async (req, res) => {
     waitUntil(
       handleReactionAdded(body.event).catch((err) => {
         console.error('Failed to handle reaction_added event', err);
+      })
+    );
+  }
+
+  if (body.type === 'shortcut') {
+    const shortcutPayload = parseShortcutPayload(body);
+    const triggerEmoji = process.env.TRIGGER_EMOJI || 'thermometer';
+
+    waitUntil(
+      handleMessageReview({
+        ...shortcutPayload,
+        triggerEmoji,
+      }).catch((err) => {
+        console.error('Failed to handle shortcut payload', err);
       })
     );
   }

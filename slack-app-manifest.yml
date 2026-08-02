@@ -6,6 +6,11 @@ features:
   bot_user:
     display_name: Assisted EQ Bot
     always_online: false
+  shortcuts:
+    - name: Review message
+      type: message
+      callback_id: review_message
+      description: Review this message with Assisted EQ Bot
 oauth_config:
   scopes:
     bot:
@@ -19,12 +24,16 @@ oauth_config:
       - im:write
       - mpim:write
       - groups:write
+      - commands
 settings:
   event_subscriptions:
     # Replace with your deployed Vercel URL once you have it
     request_url: https://assisted-eq-bot.vercel.app/api/slack/events
     bot_events:
       - reaction_added
+  interactivity:
+    is_enabled: true
+    request_url: https://assisted-eq-bot.vercel.app/api/slack/events
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
