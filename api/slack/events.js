@@ -23,6 +23,35 @@ async function handleReactionAdded(event) {
 
   const { channel, ts } = event.item;
 
+  const [message, messagePermalink] = await Promise.all([
+    fetchMessage(channel, ts),
+    getPermalink(channel, ts),
+  ]);
+
+  if (!message) return; // message was deleted, or bot can't see the channel
+
+  const author = message.user ? `<@${message.user}>` : 'someone';
+  const messageText = message.text || '';
+  const isSelfFlag = Boolean(message.user && event.user === message.user);
+
+  if (isSelfFlag) {
+    const aiReview = await reviewMessage(messageText).catch((err) => {
+      console.error('Review failed', err);
+      return null;
+    });
+
+    const feedbackText = [
+      'Your message was reviewed by Assisted EQ Bot.',
+      '',
+      aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
+      '',
+      `Original message: ${messagePermalink}`,
+    ].join('\n');
+
+    await sendDirectMessage(event.user, feedbackText);
+    return;
+  }
+
   const existingThreadTs = await getExistingThreadTs(channel, ts);
   if (existingThreadTs) {
     await postToTriage({
@@ -32,23 +61,10 @@ async function handleReactionAdded(event) {
     return;
   }
 
-  const [message, permalink] = await Promise.all([
-    fetchMessage(channel, ts),
-    getPermalink(channel, ts),
-  ]);
-
-  if (!message) return; // message was deleted, or bot can't see the channel
-
-  const author = message.user ? `<@${message.user}>` : 'someone';
-  const messageText = message.text || '';
-
-  const [aiReview, permalink] = await Promise.all([
-    reviewMessage(messageText).catch((err) => {
-      console.error('OpenAI review failed', err);
-      return null;
-    }),
-    getPermalink(channel, ts),
-  ]);
+  const aiReview = await reviewMessage(messageText).catch((err) => {
+    console.error('OpenAI review failed', err);
+    return null;
+  });
 
   const textParts = [];
   if (aiReview && aiReview.needsEscalation) {
@@ -57,7 +73,7 @@ async function handleReactionAdded(event) {
 
   textParts.push(
     `:${triggerEmoji}: Flagged message from ${author} in <#${channel}>`,
-    permalink,
+    messagePermalink,
     blockquote(messageText)
   );
 
