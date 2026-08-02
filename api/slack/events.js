@@ -133,12 +133,19 @@ async function handleReactionAdded(event) {
 }
 
 module.exports = async (req, res) => {
+  console.log('Incoming request', { method: req.method, url: req.url });
+
   if (req.method !== 'POST') {
     res.status(405).end();
     return;
   }
 
   const rawBody = await readRawBody(req);
+  console.log('Raw body received', { length: rawBody.length, headers: {
+    slackTimestamp: req.headers['x-slack-request-timestamp'],
+    slackSignature: Boolean(req.headers['x-slack-signature']),
+    slackRetry: req.headers['x-slack-retry-num'],
+  }});
 
   const valid = isValidSlackSignature({
     signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -147,12 +154,18 @@ module.exports = async (req, res) => {
     rawBody,
   });
 
+  console.log('Signature validation result', { valid });
   if (!valid) {
     res.status(401).end();
     return;
   }
 
   const body = JSON.parse(rawBody.toString('utf8'));
+  console.log('Parsed request body', {
+    type: body.type,
+    eventType: body.event && body.event.type,
+    challenge: body.type === 'url_verification',
+  });
 
   // One-time handshake Slack sends when you first set the Request URL.
   if (body.type === 'url_verification') {
