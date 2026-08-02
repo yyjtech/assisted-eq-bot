@@ -18,7 +18,7 @@ function blockquote(text) {
 function buildFeedbackText({ messageText, aiReview, messagePermalink }) {
   return [
     'Message was reviewed by Assisted EQ Bot.',
-    `> ${messageText}`,
+    `>>> ${messageText}`,
     '',
     aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
     '',
@@ -218,6 +218,9 @@ async function handleReactionAdded(event) {
     getPermalink(channel, ts),
   ]);
 
+  const author = message && message.user ? `<@${message.user}>` : 'someone';
+  const messageText = message && message.text ? message.text : '';
+
   if (!message) {
     console.log('No message found for reaction; likely deleted or inaccessible', { channel, ts });
 
@@ -225,7 +228,7 @@ async function handleReactionAdded(event) {
       messagePermalink: messagePermalink || 'Unavailable',
       channelId: channel,
       triggerEmoji,
-      author: author || 'someone',
+      author,
     });
 
     const posted = await postToTriage({ text: fallbackText });
@@ -235,9 +238,6 @@ async function handleReactionAdded(event) {
   }
 
   console.log('Fetched message', { channel, ts, messageUser: message.user, messageText: message.text });
-
-  const author = message.user ? `<@${message.user}>` : 'someone';
-  const messageText = message.text || '';
   const isSelfFlag = Boolean(message.user && event.user === message.user);
 
   if (isSelfFlag) {
@@ -249,14 +249,11 @@ async function handleReactionAdded(event) {
 
     console.log('AI review generated for self-flag', { reviewPresent: Boolean(aiReview && aiReview.reviewText) });
 
-    const feedbackText = [
-      'Your message was reviewed by Assisted EQ Bot.',
-      `> ${messageText}`,
-      '',
-      aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
-      '',
-      `Original message: ${messagePermalink}`,
-    ].join('\n');
+    const feedbackText = buildFeedbackText({
+      messageText,
+      aiReview,
+      messagePermalink,
+    });
 
     console.log('Sending feedback DM to self-flagging user', { user: event.user });
     await sendDirectMessage(event.user, feedbackText);
@@ -281,6 +278,12 @@ async function handleReactionAdded(event) {
     return null;
   });
 
+  const feedbackText = buildFeedbackText({
+    messageText,
+    aiReview,
+    messagePermalink,
+  });
+
   const textParts = [];
   if (aiReview && aiReview.needsEscalation) {
     textParts.push('@channel');
@@ -288,14 +291,11 @@ async function handleReactionAdded(event) {
 
   textParts.push(
     `:${triggerEmoji}: Flagged message from ${author} in <#${channel}>`,
+    feedbackText,
+    '',
     messagePermalink,
     blockquote(messageText)
   );
-
-  if (aiReview && aiReview.reviewText) {
-    textParts.push('\n*OpenAI review:*');
-    textParts.push(aiReview.reviewText);
-  }
 
   console.log('Posting triage message', { channel, ts, escalation: Boolean(aiReview && aiReview.needsEscalation) });
   const posted = await postToTriage({ text: textParts.join('\n') });
