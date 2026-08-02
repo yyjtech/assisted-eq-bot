@@ -26,6 +26,15 @@ function buildFeedbackText({ messageText, aiReview, messagePermalink }) {
   ].join('\n');
 }
 
+function buildUnavailableMessageText({ messagePermalink, channelId, triggerEmoji, author }) {
+  return [
+    `:${triggerEmoji}: Flagged message from ${author} in <#${channelId}>`,
+    messagePermalink,
+    '',
+    'The original message could not be retrieved from Slack, but the review request was still recorded.',
+  ].join('\n');
+}
+
 function decodeFormBody(bodyText) {
   const params = new URLSearchParams(bodyText);
   const payloadValue = params.get('payload');
@@ -211,6 +220,17 @@ async function handleReactionAdded(event) {
 
   if (!message) {
     console.log('No message found for reaction; likely deleted or inaccessible', { channel, ts });
+
+    const fallbackText = buildUnavailableMessageText({
+      messagePermalink: messagePermalink || 'Unavailable',
+      channelId: channel,
+      triggerEmoji,
+      author: author || 'someone',
+    });
+
+    const posted = await postToTriage({ text: fallbackText });
+    console.log('Posted fallback triage message for inaccessible reaction target', { postedTs: posted && posted.ts });
+    await rememberThreadTs(channel, ts, posted.ts);
     return;
   }
 
@@ -378,4 +398,5 @@ async function handler(req, res) {
 handler.parseSlackBody = parseSlackBody;
 handler.parseShortcutPayload = parseShortcutPayload;
 handler.buildFeedbackText = buildFeedbackText;
+handler.buildUnavailableMessageText = buildUnavailableMessageText;
 module.exports = handler;

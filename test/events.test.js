@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseSlackBody, parseShortcutPayload, buildFeedbackText } = require('../api/slack/events');
-const { buildForwardedMessagePayload } = require('../lib/slack');
+const { parseSlackBody, parseShortcutPayload, buildFeedbackText, buildUnavailableMessageText } = require('../api/slack/events');
+const { buildForwardedMessagePayload, buildMessageFetchRequests } = require('../lib/slack');
 const { getExistingThreadTs, rememberThreadTs } = require('../lib/store');
 
 async function withEnv(key, value, fn) {
@@ -59,6 +59,41 @@ test('builds shared feedback text with the AI review and permalink', () => {
   assert.match(feedbackText, /Message was reviewed by Assisted EQ Bot\./);
   assert.match(feedbackText, /This is a review/);
   assert.match(feedbackText, /https:\/\/slack\.example\.com\/message/);
+});
+
+test('builds a fallback message text when the original message cannot be fetched', () => {
+  const fallbackText = buildUnavailableMessageText({
+    messagePermalink: 'https://slack.example.com/message',
+    channelId: 'C123',
+    triggerEmoji: 'thermometer',
+    author: '<@U123>',
+  });
+
+  assert.match(fallbackText, /thermometer/);
+  assert.match(fallbackText, /<@U123>/);
+  assert.match(fallbackText, /https:\/\/slack\.example\.com\/message/);
+  assert.match(fallbackText, /could not be retrieved/i);
+});
+
+test('builds both history and replies fetches for a message lookup', () => {
+  const requests = buildMessageFetchRequests('C123', '1700000000.0001');
+
+  assert.equal(requests[0].method, 'history');
+  assert.deepStrictEqual(requests[0].params, {
+    channel: 'C123',
+    latest: '1700000000.0001',
+    oldest: '1700000000.0001',
+    inclusive: true,
+    limit: 1,
+  });
+
+  assert.equal(requests[1].method, 'replies');
+  assert.deepStrictEqual(requests[1].params, {
+    channel: 'C123',
+    ts: '1700000000.0001',
+    inclusive: true,
+    limit: 10,
+  });
 });
 
 test('builds a forwarded message payload that preserves body and attachments', () => {
