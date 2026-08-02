@@ -42,7 +42,7 @@ async function handleReactionAdded(event) {
   const author = message.user ? `<@${message.user}>` : 'someone';
   const messageText = message.text || '';
 
-  const [aiResponse, permalink] = await Promise.all([
+  const [aiReview, permalink] = await Promise.all([
     reviewMessage(messageText).catch((err) => {
       console.error('OpenAI review failed', err);
       return null;
@@ -50,15 +50,20 @@ async function handleReactionAdded(event) {
     getPermalink(channel, ts),
   ]);
 
-  const textParts = [
+  const textParts = [];
+  if (aiReview && aiReview.needsEscalation) {
+    textParts.push('@channel');
+  }
+
+  textParts.push(
     `:${triggerEmoji}: Flagged message from ${author} in <#${channel}>`,
     permalink,
-    blockquote(messageText),
-  ];
+    blockquote(messageText)
+  );
 
-  if (aiResponse) {
+  if (aiReview && aiReview.reviewText) {
     textParts.push('\n*OpenAI review:*');
-    textParts.push(aiResponse);
+    textParts.push(aiReview.reviewText);
   }
 
   const posted = await postToTriage({ text: textParts.join('\n') });
@@ -68,7 +73,7 @@ async function handleReactionAdded(event) {
     try {
       await sendDirectMessage(
         event.user,
-        `Your reaction has forwarded the message to the Channel Stewards in <#${process.env.TRIAGE_CHANNEL_NAME || 'the target channel'}>.`
+        `Your reaction has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.`
       );
     } catch (err) {
       console.error('Failed to send DM to user', err);

@@ -1,5 +1,5 @@
 display_information:
-  name: Skunk Forwarder
+  name: Assisted EQ Bot
   description: Forwards messages reacted with :skunk: into a thread in #coc-reports
   background_color: "#4a4a4a"
 oauth_config:

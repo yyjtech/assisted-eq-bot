@@ -1,8 +1,8 @@
 {
-  "name": "slack-emoji-forwarder",
+  "name": "assisted-eq-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "Slack Events API app: forwards messages reacted with :skunk: into a thread in #coc-reports",
+  "description": "Slack Events API app: forwards messages reacted with :skunk: into a thread in #coc-reports for Assisted EQ Bot",
   "main": "index.js",
   "scripts": {
     "dev": "vercel dev"

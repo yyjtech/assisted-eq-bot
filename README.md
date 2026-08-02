@@ -1,4 +1,4 @@
-# Slack Emoji Forwarder
+# Assisted EQ Bot
 
 A serverless Slack app that listens for a specific emoji reaction on any message and takes action when that emoji is added.
 
@@ -33,6 +33,7 @@ Optional:
 - `TRIAGE_CHANNEL_ID` - direct channel ID to post notifications (if set, this takes precedence over `TRIAGE_CHANNEL_NAME`)
 - `TRIGGER_EMOJI` - emoji name to watch for (default: `skunk`)
 - `OPENAI_API_KEY` - API key for OpenAI to review flagged messages
+- `ESCALATION_THRESHOLD` - minimum score threshold for escalation (default: `6.5`)
 
 ## Slack app setup
 
