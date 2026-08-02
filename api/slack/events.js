@@ -15,6 +15,20 @@ function blockquote(text) {
     .join('\n');
 }
 
+function parseSlackBody(rawBody) {
+  if (!rawBody) return {};
+
+  const bodyText = rawBody.toString('utf8');
+  if (!bodyText) return {};
+
+  if (bodyText.startsWith('payload=')) {
+    const decoded = decodeURIComponent(bodyText.slice('payload='.length));
+    return JSON.parse(decoded);
+  }
+
+  return JSON.parse(bodyText);
+}
+
 function parseShortcutPayload(payload) {
   if (!payload || payload.type !== 'shortcut') return null;
 
@@ -251,7 +265,7 @@ async function handleReactionAdded(event) {
   }
 }
 
-module.exports = async (req, res) => {
+async function handler(req, res) {
   console.log('Incoming request', { method: req.method, url: req.url });
 
   if (req.method !== 'POST') {
@@ -279,8 +293,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const payload = JSON.parse(rawBody.toString('utf8'));
-  const body = payload.payload ? JSON.parse(payload.payload) : payload;
+  const body = parseSlackBody(rawBody);
   console.log('Parsed request body', {
     type: body.type,
     eventType: body.event && body.event.type,
@@ -326,4 +339,7 @@ module.exports = async (req, res) => {
       })
     );
   }
-};
+}
+
+handler.parseSlackBody = parseSlackBody;
+module.exports = handler;
