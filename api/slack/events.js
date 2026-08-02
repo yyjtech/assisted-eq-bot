@@ -15,6 +15,14 @@ function blockquote(text) {
     .join('\n');
 }
 
+function decodeFormBody(bodyText) {
+  const params = new URLSearchParams(bodyText);
+  const payloadValue = params.get('payload');
+  if (!payloadValue) return null;
+
+  return JSON.parse(payloadValue);
+}
+
 function parseSlackBody(rawBody) {
   if (!rawBody) return {};
 
@@ -22,8 +30,7 @@ function parseSlackBody(rawBody) {
   if (!bodyText) return {};
 
   if (bodyText.startsWith('payload=')) {
-    const decoded = decodeURIComponent(bodyText.slice('payload='.length));
-    return JSON.parse(decoded);
+    return decodeFormBody(bodyText);
   }
 
   return JSON.parse(bodyText);
