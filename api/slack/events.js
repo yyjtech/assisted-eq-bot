@@ -18,10 +18,10 @@ function blockquote(text) {
 function buildFeedbackText({ messageText, aiReview, messagePermalink }) {
   return [
     'Message was reviewed by Assisted EQ Bot.',
-    `>>> ${messageText}`,
     '',
     aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
     '',
+    `>>> ${messageText}`,
     `Original message: ${messagePermalink}`,
   ].join('\n');
 }
