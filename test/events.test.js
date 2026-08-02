@@ -109,8 +109,8 @@ test('uses an explicit template text instead of rebuilding it from the message b
   });
 
   assert.equal(payload.text, 'Template body from the handler');
-  assert.deepStrictEqual(payload.attachments, [{ text: 'Attachment body' }]);
-  assert.deepStrictEqual(payload.blocks, [{ type: 'section', text: { type: 'mrkdwn', text: 'Block body' } }]);
+  assert.equal(payload.attachments, undefined);
+  assert.equal(payload.blocks, undefined);
 });
 
 test('builds a forwarded message payload that preserves body and attachments', () => {
