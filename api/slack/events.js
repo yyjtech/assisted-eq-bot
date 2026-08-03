@@ -56,6 +56,17 @@ function parseSlackBody(rawBody) {
   return JSON.parse(bodyText);
 }
 
+// If the flagged message is a reply in a thread, fetch the original post that
+// started the thread so the AI review has more context than the reply alone.
+async function getThreadRootText(channelId, message) {
+  if (!message || !message.thread_ts || message.thread_ts === message.ts) {
+    return null;
+  }
+
+  const rootMessage = await fetchMessage(channelId, message.thread_ts);
+  return rootMessage && rootMessage.text ? rootMessage.text : null;
+}
+
 function parseShortcutPayload(payload) {
   if (!payload || !['shortcut', 'message_action'].includes(payload.type)) return null;
 
@@ -103,10 +114,11 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
   const author = message.user ? `<@${message.user}>` : 'someone';
   const messageText = message.text || '';
   const isSelfFlag = Boolean(message.user && userId === message.user);
+  const threadContext = await getThreadRootText(channelId, message);
 
   if (isSelfFlag) {
     console.log('Self-flagging path selected', { user: userId, author: message.user });
-    const aiReview = await reviewMessage(messageText).catch((err) => {
+    const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
       console.error('Review failed', err);
       return null;
     });
@@ -138,7 +150,7 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
   }
 
   console.log('No existing thread found; generating new triage post');
-  const aiReview = await reviewMessage(messageText).catch((err) => {
+  const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
     console.error('OpenAI review failed', err);
     return null;
   });
@@ -233,10 +245,11 @@ async function handleReactionAdded(event) {
 
   console.log('Fetched message', { channel, ts, messageUser: message.user, messageText: message.text });
   const isSelfFlag = Boolean(message.user && event.user === message.user);
+  const threadContext = await getThreadRootText(channel, message);
 
   if (isSelfFlag) {
     console.log('Self-flagging path selected', { user: event.user, author: message.user });
-    const aiReview = await reviewMessage(messageText).catch((err) => {
+    const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
       console.error('Review failed', err);
       return null;
     });
@@ -267,7 +280,7 @@ async function handleReactionAdded(event) {
   }
 
   console.log('No existing thread found; generating new triage post');
-  const aiReview = await reviewMessage(messageText).catch((err) => {
+  const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
     console.error('OpenAI review failed', err);
     return null;
   });
