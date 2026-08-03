@@ -150,16 +150,11 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
   });
 
   const textParts = [];
-  if (aiReview && aiReview.needsEscalation) {
-    textParts.push('@channel');
-  }
+
 
   textParts.push(
     `:${triggerEmoji}: Flagged message from ${author} in <#${channelId}>`,
-    feedbackText,
-    '',
-    messagePermalink,
-    blockquote(messageText)
+    feedbackText
   );
 
   console.log('Posting triage message', { channel: channelId, ts: messageTs, escalation: Boolean(aiReview && aiReview.needsEscalation) });
@@ -167,7 +162,6 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
     text: textParts.join('\n'),
     message,
     permalink: messagePermalink,
-    introText: textParts.join('\n'),
   });
   console.log('Triage message posted', { postedTs: posted && posted.ts });
   await rememberThreadTs(channelId, messageTs, posted.ts);
