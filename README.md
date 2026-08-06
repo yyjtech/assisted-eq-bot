@@ -34,7 +34,6 @@ Optional:
 - `SPAM_EMOJI` - emoji name that screens a message for scam/spam signals instead of the EQ review (default: `spam`)
 - `OPENAI_API_KEY` - API key for OpenAI to review flagged messages
 - `ESCALATION_THRESHOLD` - minimum EQ score threshold for escalation (default: `6.5`)
-- `SPAM_ESCALATION_THRESHOLD` - minimum suspicion score (1-5) that triggers an `@channel` ping on spam reviews (default: `4`)
 
 ## Slack app setup
 

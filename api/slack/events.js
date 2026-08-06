@@ -326,10 +326,6 @@ async function handleReactionAdded(event) {
   }
 
   const textParts = [];
-  if (aiReview && aiReview.needsEscalation) {
-    textParts.push('<!channel>');
-  }
-
   textParts.push(`:${event.reaction}: Flagged message from ${author} in <#${channel}>`);
   if (feedbackText) {
     textParts.push(feedbackText);
