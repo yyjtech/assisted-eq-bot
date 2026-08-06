@@ -2,7 +2,7 @@ const { waitUntil } = require('@vercel/functions');
 const { readRawBody, isValidSlackSignature } = require('../../lib/verify');
 const { fetchMessage, getPermalink, postToTriage, sendDirectMessage } = require('../../lib/slack');
 const { getExistingThreadTs, rememberThreadTs } = require('../../lib/store');
-const { reviewMessage } = require('../../lib/openai');
+const { reviewMessage, reviewSpamMessage } = require('../../lib/openai');
 
 // Vercel-specific: we need the exact raw bytes of the request body to verify
 // Slack's signature, so we opt out of the platform's automatic body parsing.
@@ -20,6 +20,17 @@ function buildFeedbackText({ messageText, aiReview, messagePermalink }) {
     'Message was reviewed by Assisted EQ Bot.',
     '',
     aiReview && aiReview.reviewText ? aiReview.reviewText : 'No review was generated.',
+    '',
+    `>>> ${messageText}`,
+    `Original message: ${messagePermalink}`,
+  ].join('\n');
+}
+
+function buildSpamFeedbackText({ messageText, spamReview, messagePermalink }) {
+  return [
+    'Message was screened by Spam Watch.',
+    '',
+    spamReview && spamReview.reviewText ? spamReview.reviewText : 'No screening result was generated.',
     '',
     `>>> ${messageText}`,
     `Original message: ${messagePermalink}`,
@@ -196,18 +207,23 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
 
 async function handleReactionAdded(event) {
   const triggerEmoji = process.env.TRIGGER_EMOJI || 'thermometer';
+  const spamEmoji = process.env.SPAM_EMOJI || 'spam';
 
   console.log('Received reaction event', {
     reaction: event.reaction,
     triggerEmoji,
+    spamEmoji,
     user: event.user,
     itemType: event.item && event.item.type,
     channel: event.item && event.item.channel,
     ts: event.item && event.item.ts,
   });
 
-  if (event.reaction !== triggerEmoji) {
-    console.log('Reaction did not match trigger emoji');
+  const isReviewFlag = event.reaction === triggerEmoji;
+  const isSpamFlag = event.reaction === spamEmoji;
+
+  if (!isReviewFlag && !isSpamFlag) {
+    console.log('Reaction did not match a trigger emoji');
     return;
   }
 
@@ -233,7 +249,7 @@ async function handleReactionAdded(event) {
     const fallbackText = buildUnavailableMessageText({
       messagePermalink: messagePermalink || 'Unavailable',
       channelId: channel,
-      triggerEmoji,
+      triggerEmoji: event.reaction,
       author,
     });
 
@@ -245,10 +261,10 @@ async function handleReactionAdded(event) {
 
   console.log('Fetched message', { channel, ts, messageUser: message.user, messageText: message.text });
   const isSelfFlag = Boolean(message.user && event.user === message.user);
-  const threadContext = await getThreadRootText(channel, message);
 
-  if (isSelfFlag) {
+  if (isReviewFlag && isSelfFlag) {
     console.log('Self-flagging path selected', { user: event.user, author: message.user });
+    const threadContext = await getThreadRootText(channel, message);
     const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
       console.error('Review failed', err);
       return null;
@@ -272,39 +288,55 @@ async function handleReactionAdded(event) {
   if (existingThreadTs) {
     console.log('Found existing thread for message; posting follow-up reply', { channel, ts, existingThreadTs });
     await postToTriage({
-      text: `:${triggerEmoji}: Also flagged by <@${event.user}>`,
+      text: `:${event.reaction}: Also flagged by <@${event.user}>`,
       threadTs: existingThreadTs,
     });
     console.log('Follow-up reply posted');
     return;
   }
 
-  console.log('No existing thread found; generating new triage post');
-  const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
-    console.error('OpenAI review failed', err);
-    return null;
-  });
+  const threadContext = await getThreadRootText(channel, message);
+  let feedbackText = null;
+  let aiReview = null;
 
-  const feedbackText = buildFeedbackText({
-    messageText,
-    aiReview,
-    messagePermalink,
-  });
+  if (isReviewFlag) {
+    console.log('No existing thread found; generating new triage post with AI review');
+    aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
+      console.error('OpenAI review failed', err);
+      return null;
+    });
+
+    feedbackText = buildFeedbackText({
+      messageText,
+      aiReview,
+      messagePermalink,
+    });
+  } else {
+    console.log('No existing thread found; generating new triage post with spam review', { reaction: event.reaction });
+    aiReview = await reviewSpamMessage(messageText, { threadContext }).catch((err) => {
+      console.error('OpenAI spam review failed', err);
+      return null;
+    });
+
+    feedbackText = buildSpamFeedbackText({
+      messageText,
+      spamReview: aiReview,
+      messagePermalink,
+    });
+  }
 
   const textParts = [];
   if (aiReview && aiReview.needsEscalation) {
-    textParts.push('@channel');
+    textParts.push('<!channel>');
   }
 
-  textParts.push(
-    `:${triggerEmoji}: Flagged message from ${author} in <#${channel}>`,
-    feedbackText,
-    '',
-    messagePermalink,
-    blockquote(messageText)
-  );
+  textParts.push(`:${event.reaction}: Flagged message from ${author} in <#${channel}>`);
+  if (feedbackText) {
+    textParts.push(feedbackText);
+  }
+  textParts.push('', messagePermalink, blockquote(messageText));
 
-  console.log('Posting triage message', { channel, ts, escalation: Boolean(aiReview && aiReview.needsEscalation) });
+  console.log('Posting triage message', { channel, ts, escalation: Boolean(aiReview && aiReview.needsEscalation), reviewType: isReviewFlag ? 'eq' : 'spam' });
   const posted = await postToTriage({ text: textParts.join('\n') });
   console.log('Triage message posted', { postedTs: posted && posted.ts });
   await rememberThreadTs(channel, ts, posted.ts);
