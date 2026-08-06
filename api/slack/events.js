@@ -330,7 +330,6 @@ async function handleReactionAdded(event) {
   if (feedbackText) {
     textParts.push(feedbackText);
   }
-  textParts.push('', messagePermalink, blockquote(messageText));
 
   console.log('Posting triage message', { channel, ts, escalation: Boolean(aiReview && aiReview.needsEscalation), reviewType: isReviewFlag ? 'eq' : 'spam' });
   const posted = await postToTriage({ text: textParts.join('\n') });
