@@ -1,20 +1,20 @@
 display_information:
-  name: Assisted EQ Bot
+  name: Report Messages Bot
   description: "Forwards messages reacted with :thermometer: into a thread in a triage channel"
   background_color: "#4a4a4a"
 features:
   bot_user:
-    display_name: Assisted EQ Bot
+    display_name: Report Messages Bot
     always_online: false
   shortcuts:
-    - name: Review message
+    - name: Report CoC Violation
       type: message
       callback_id: review_message
-      description: Review this message with Assisted EQ Bot
+      description: Review this message for code of conduct violations
     - name: Report spam
       type: message
       callback_id: report_spam
-      description: Flag this message for spam/scam review
+      description: Flag this message as potential spam orscam
 oauth_config:
   scopes:
     bot:
