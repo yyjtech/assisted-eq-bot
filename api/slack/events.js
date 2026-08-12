@@ -83,6 +83,7 @@ function parseShortcutPayload(payload) {
 
   return {
     sourceType: payload.type === 'message_action' ? 'message_action' : 'shortcut',
+    callbackId: payload.callback_id || null,
     userId: payload.user && payload.user.id,
     channelId: payload.channel && payload.channel.id,
     messageTs: payload.message && payload.message.ts,
@@ -90,7 +91,7 @@ function parseShortcutPayload(payload) {
   };
 }
 
-async function handleMessageReview({ sourceType, userId, channelId, messageTs, triggerEmoji, message: payloadMessage }) {
+async function handleMessageReview({ sourceType, userId, channelId, messageTs, triggerEmoji, reviewType = 'eq', message: payloadMessage }) {
   if (!channelId || !messageTs) {
     console.log('Shortcut payload missing channel or message timestamp', { channelId, messageTs });
     return;
@@ -127,7 +128,7 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
   const isSelfFlag = Boolean(message.user && userId === message.user);
   const threadContext = await getThreadRootText(channelId, message);
 
-  if (isSelfFlag) {
+  if (reviewType === 'eq' && isSelfFlag) {
     console.log('Self-flagging path selected', { user: userId, author: message.user });
     const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
       console.error('Review failed', err);
@@ -160,17 +161,20 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
     return;
   }
 
-  console.log('No existing thread found; generating new triage post');
-  const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
-    console.error('OpenAI review failed', err);
-    return null;
-  });
+  console.log('No existing thread found; generating new triage post', { reviewType });
+  const aiReview = reviewType === 'spam'
+    ? await reviewSpamMessage(messageText, { threadContext }).catch((err) => {
+      console.error('OpenAI spam review failed', err);
+      return null;
+    })
+    : await reviewMessage(messageText, { threadContext }).catch((err) => {
+      console.error('OpenAI review failed', err);
+      return null;
+    });
 
-  const feedbackText = buildFeedbackText({
-    messageText,
-    aiReview,
-    messagePermalink,
-  });
+  const feedbackText = reviewType === 'spam'
+    ? buildSpamFeedbackText({ messageText, spamReview: aiReview, messagePermalink })
+    : buildFeedbackText({ messageText, aiReview, messagePermalink });
 
   const textParts = [];
 
@@ -415,12 +419,16 @@ async function handler(req, res) {
   if (body.type === 'shortcut' || body.type === 'message_action') {
     const shortcutPayload = parseShortcutPayload(body);
     const triggerEmoji = process.env.TRIGGER_EMOJI || 'thermometer';
+    const spamEmoji = process.env.SPAM_EMOJI || 'spam';
 
     if (shortcutPayload) {
+      const isSpamShortcut = shortcutPayload.callbackId === 'report_spam';
+
       waitUntil(
         handleMessageReview({
           ...shortcutPayload,
-          triggerEmoji,
+          triggerEmoji: isSpamShortcut ? spamEmoji : triggerEmoji,
+          reviewType: isSpamShortcut ? 'spam' : 'eq',
         }).catch((err) => {
           console.error('Failed to handle shortcut payload', err);
         })

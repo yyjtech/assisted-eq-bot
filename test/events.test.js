@@ -49,6 +49,19 @@ test('parses Slack message_action payloads for message review', () => {
   assert.equal(parsedShortcut.message.text, 'hello');
 });
 
+test('parses Slack message_action payloads for the spam report shortcut', () => {
+  const rawBody = Buffer.from('payload=%7B%22type%22%3A%22message_action%22%2C%22callback_id%22%3A%22report_spam%22%2C%22user%22%3A%7B%22id%22%3A%22U789%22%7D%2C%22channel%22%3A%7B%22id%22%3A%22C789%22%7D%2C%22message%22%3A%7B%22ts%22%3A%221700000000.0003%22%2C%22text%22%3A%22buy%20now%22%7D%7D');
+
+  const parsed = parseSlackBody(rawBody);
+  const parsedShortcut = parseShortcutPayload(parsed);
+
+  assert.equal(parsed.callback_id, 'report_spam');
+  assert.equal(parsedShortcut.callbackId, 'report_spam');
+  assert.equal(parsedShortcut.userId, 'U789');
+  assert.equal(parsedShortcut.channelId, 'C789');
+  assert.equal(parsedShortcut.messageTs, '1700000000.0003');
+});
+
 test('builds shared feedback text with the AI review and permalink', () => {
   const feedbackText = buildFeedbackText({
     messageText: 'hello world',

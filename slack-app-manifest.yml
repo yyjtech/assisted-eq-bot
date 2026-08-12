@@ -11,6 +11,10 @@ features:
       type: message
       callback_id: review_message
       description: Review this message with Assisted EQ Bot
+    - name: Report spam
+      type: message
+      callback_id: report_spam
+      description: Flag this message for spam/scam review
 oauth_config:
   scopes:
     bot:
