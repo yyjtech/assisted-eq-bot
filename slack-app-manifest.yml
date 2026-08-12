@@ -15,6 +15,10 @@ features:
       type: message
       callback_id: report_spam
       description: Flag this message as potential spam orscam
+    - name: Report CoC Violation (Anonymous)
+      type: message
+      callback_id: report_coc_anonymous
+      description: Report a code of conduct violation without sharing your identity
 oauth_config:
   scopes:
     bot:

@@ -91,7 +91,7 @@ function parseShortcutPayload(payload) {
   };
 }
 
-async function handleMessageReview({ sourceType, userId, channelId, messageTs, triggerEmoji, reviewType = 'eq', message: payloadMessage }) {
+async function handleMessageReview({ sourceType, userId, channelId, messageTs, triggerEmoji, reviewType = 'eq', anonymous = false, message: payloadMessage }) {
   if (!channelId || !messageTs) {
     console.log('Shortcut payload missing channel or message timestamp', { channelId, messageTs });
     return;
@@ -129,7 +129,7 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
   const threadContext = await getThreadRootText(channelId, message);
 
   if (reviewType === 'eq' && isSelfFlag) {
-    console.log('Self-flagging path selected', { user: userId, author: message.user });
+    console.log('Self-flagging path selected', { author: message.user, anonymous, ...(anonymous ? {} : { user: userId }) });
     const aiReview = await reviewMessage(messageText, { threadContext }).catch((err) => {
       console.error('Review failed', err);
       return null;
@@ -141,7 +141,7 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
       messagePermalink,
     });
 
-    console.log('Sending feedback DM to self-flagging user', { user: userId });
+    console.log('Sending feedback DM to self-flagging user', { anonymous, ...(anonymous ? {} : { user: userId }) });
     await sendDirectMessage(userId, feedbackText);
     console.log('Feedback DM sent');
     return;
@@ -149,13 +149,16 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
 
   const existingThreadTs = await getExistingThreadTs(channelId, messageTs);
   if (existingThreadTs) {
-    console.log('Found existing thread for message; posting follow-up reply', { channel: channelId, ts: messageTs, existingThreadTs });
+    console.log('Found existing thread for message; posting follow-up reply', { channel: channelId, ts: messageTs, existingThreadTs, anonymous });
+    const followUpText = anonymous
+      ? `:${triggerEmoji}: Also flagged (reported anonymously)`
+      : `:${triggerEmoji}: Also flagged by <@${userId}>`;
     await postToTriage({
-      text: `:${triggerEmoji}: Also flagged by <@${userId}>`,
+      text: followUpText,
       threadTs: existingThreadTs,
       message,
       permalink: messagePermalink,
-      introText: `:${triggerEmoji}: Also flagged by <@${userId}>`,
+      introText: followUpText,
     });
     console.log('Follow-up reply posted');
     return;
@@ -196,11 +199,13 @@ async function handleMessageReview({ sourceType, userId, channelId, messageTs, t
 
   if (userId) {
     try {
-      const acknowledgementText = sourceType === 'shortcut'
-        ? 'Your shortcut request has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.'
-        : 'Your reaction has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.';
+      const acknowledgementText = anonymous
+        ? 'Your anonymous report has forwarded the message to the Channel Stewards. Your identity was not shared. Thank you for helping keep this community as inclusive and safe as possible.'
+        : sourceType === 'shortcut'
+          ? 'Your shortcut request has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.'
+          : 'Your reaction has forwarded the message to the Channel Stewards. Thank you for helping keep this community as inclusive and safe as possible.';
 
-      console.log('Sending acknowledgement DM to user', { user: userId, sourceType });
+      console.log('Sending acknowledgement DM to user', { sourceType, anonymous, ...(anonymous ? {} : { user: userId }) });
       await sendDirectMessage(userId, acknowledgementText);
       console.log('Acknowledgement DM sent');
     } catch (err) {
@@ -423,12 +428,14 @@ async function handler(req, res) {
 
     if (shortcutPayload) {
       const isSpamShortcut = shortcutPayload.callbackId === 'report_spam';
+      const isAnonymousCocShortcut = shortcutPayload.callbackId === 'report_coc_anonymous';
 
       waitUntil(
         handleMessageReview({
           ...shortcutPayload,
           triggerEmoji: isSpamShortcut ? spamEmoji : triggerEmoji,
           reviewType: isSpamShortcut ? 'spam' : 'eq',
+          anonymous: isAnonymousCocShortcut,
         }).catch((err) => {
           console.error('Failed to handle shortcut payload', err);
         })
